@@ -13,14 +13,19 @@ type Organization = {
   campaignCount: number;
 };
 
+type DispatchState = 'RUNNING' | 'PAUSED' | 'CANCELLED';
+
 type Campaign = {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
   id: string;
   name: string;
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
   emergencyStoppedAt: string | null;
+  dispatchState?: DispatchState;
+  dispatchEpoch?: number;
+  dispatchStopReason?: string | null;
 };
 
 type Health = {
@@ -43,6 +48,51 @@ function statusClass(value: string) {
   if (normalized === 'active' || normalized === 'ok' || normalized === 'up') return 'status-active';
   if (normalized === 'paused' || normalized === 'degraded') return 'status-paused';
   return 'status-suspended';
+}
+
+/** Explicit dispatch state, with a conservative presentation for older rows. */
+export function campaignDispatchState(
+  campaign: Pick<Campaign, 'status' | 'dispatchState' | 'emergencyStoppedAt'>,
+): DispatchState {
+  if (campaign.dispatchState) return campaign.dispatchState;
+  if (campaign.status === 'CANCELLED') return 'CANCELLED';
+  if (campaign.status === 'PAUSED' || campaign.emergencyStoppedAt) return 'PAUSED';
+  return 'RUNNING';
+}
+
+export function dispatchStopReasonLabel(reason?: string | null): string | null {
+  switch (reason) {
+    case 'security_incident':
+      return 'Security incident';
+    case 'provider_incident':
+      return 'Provider incident';
+    case 'abuse_suspected':
+      return 'Abuse suspected';
+    case 'customer_request':
+      return 'Customer request';
+    case 'emergency_stop':
+      return 'Platform emergency stop';
+    case 'customer_pause':
+      return 'Paused by organization member';
+    case 'customer_cancel':
+      return 'Cancelled by organization member';
+    case 'insufficient_balance':
+      return 'Insufficient approved reserve';
+    case 'dispatch_policy_unavailable':
+      return 'No approved cost policy';
+    default:
+      return null;
+  }
+}
+
+/** The stop action is only offered when new paid work is not already blocked. */
+export function canEmergencyStop(campaign: Campaign, canStop: boolean): boolean {
+  return (
+    canStop &&
+    campaign.status === 'ACTIVE' &&
+    campaignDispatchState(campaign) === 'RUNNING' &&
+    !campaign.emergencyStoppedAt
+  );
 }
 
 export function filterOrganizations(
@@ -304,14 +354,14 @@ export default function OperationsDashboard() {
                   <tbody>
                     {filteredOrganizations.map((org) => (
                       <tr key={org.id}>
-                        <td className="email-cell">
+                        <td className="email-cell" data-label="Organization">
                           {org.name}
                           <small>{org.slug}</small>
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <span className={`status ${statusClass(org.status)}`}>{org.status}</span>
                         </td>
-                        <td>{org.campaignCount}</td>
+                        <td data-label="Campaigns">{org.campaignCount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -337,6 +387,7 @@ export default function OperationsDashboard() {
                   <option value="DRAFT">Draft</option>
                   <option value="ACTIVE">Active</option>
                   <option value="PAUSED">Paused</option>
+                  <option value="CANCELLED">Cancelled</option>
                   <option value="COMPLETED">Completed</option>
                 </select>
               </label>
@@ -353,23 +404,34 @@ export default function OperationsDashboard() {
                       <th>Campaign</th>
                       <th>Organization</th>
                       <th>Status</th>
+                      <th>Dispatch</th>
+                      <th>Stop detail</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCampaigns.map((campaign) => (
                       <tr key={`${campaign.organizationId}:${campaign.id}`}>
-                        <td className="email-cell">{campaign.name}</td>
-                        <td>
+                        <td className="email-cell" data-label="Campaign">{campaign.name}</td>
+                        <td data-label="Organization">
                           {campaign.organizationName}
                           <small>{campaign.organizationSlug}</small>
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <span className={`status ${statusClass(campaign.status)}`}>{campaign.status}</span>
                           {campaign.emergencyStoppedAt && <small>Stopped {new Date(campaign.emergencyStoppedAt).toLocaleString()}</small>}
                         </td>
-                        <td>
-                          {campaign.status === 'ACTIVE' && !campaign.emergencyStoppedAt && canStop && (
+                        <td data-label="Dispatch">
+                          <span className={`status ${statusClass(campaignDispatchState(campaign))}`}>
+                            {campaignDispatchState(campaign)}
+                          </span>
+                          <small>Epoch {campaign.dispatchEpoch ?? 'unknown'}</small>
+                        </td>
+                        <td data-label="Stop detail">
+                          {dispatchStopReasonLabel(campaign.dispatchStopReason) ?? '—'}
+                        </td>
+                        <td data-label="Action">
+                          {canEmergencyStop(campaign, canStop) && (
                             <button
                               type="button"
                               className="danger-button platform-admin-action"
@@ -382,7 +444,11 @@ export default function OperationsDashboard() {
                               Emergency stop
                             </button>
                           )}
-                          {campaign.emergencyStoppedAt && <span className="status status-suspended">Stopped</span>}
+                          {campaignDispatchState(campaign) !== 'RUNNING' && (
+                            <span className="status status-suspended">
+                              {campaign.emergencyStoppedAt ? 'Emergency stopped' : 'Dispatch stopped'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -393,7 +459,7 @@ export default function OperationsDashboard() {
           </section>
 
           <p className="footnote">
-            Emergency stop pauses the campaign record and prevents reactivation through customer campaign APIs. Voice dispatch and active calls are not supported in this release.
+            Emergency stop sets a terminal dispatch block for the campaign. The worker rechecks it under a shared advisory lock before any paid provider work; calls the provider already accepted are still reconciled.
           </p>
         </>
       )}

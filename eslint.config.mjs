@@ -79,6 +79,7 @@ export default tseslint.config(
       'apps/worker/**/*.ts',
       'packages/**/*.ts',
       '*.mjs',
+      'scripts/testing/**/*.mjs',
       'infrastructure/**/*.mjs',
       'infrastructure/**/*.ts',
       '**/*.config.ts',

@@ -47,8 +47,8 @@ main {
 .notice { border: 1px solid var(--card-border); border-radius: .6rem; padding: .8rem 1rem; }
 .health-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
 @media (max-width: 1100px) { .health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .health-grid { grid-template-columns: 1fr; } }
-.health-card { display: grid; gap: .35rem; min-height: 6rem; padding: 1rem; border: 1px solid var(--card-border); border-radius: .75rem; background: var(--card-bg); }
+@media (max-width: 640px) { .health-grid { grid-template-columns: minmax(0, 1fr); } }
+.health-card { display: grid; gap: .35rem; min-width: 0; min-height: 6rem; padding: 1rem; border: 1px solid var(--card-border); border-radius: .75rem; background: var(--card-bg); }
 .health-card strong { font-size: 1.2rem; text-transform: uppercase; }
 .health-card small, td small { display: block; color: var(--muted-fg); font-size: .8rem; }
 .card { margin: 1rem 0; }
@@ -216,11 +216,29 @@ h1 {
 .platform-admin-table details summary { cursor: pointer; color: var(--muted-fg); font-size: .75rem; }
 .platform-admin-table small { font-size: .78rem; }
 @media (max-width: 900px) {
+  .platform-admin-table, .platform-admin-table tbody { display: block; width: 100%; max-width: 100%; }
   .platform-admin-table { table-layout: auto; }
   .platform-admin-table thead { display: none; }
-  .platform-admin-table tr { display: block; margin-bottom: 1rem; border: 1px solid var(--card-border); border-radius: .6rem; padding: .75rem; }
-  .platform-admin-table td { display: block; border: 0; padding: .35rem 0; }
+  .platform-admin-table tr { display: block; width: 100%; max-width: 100%; min-width: 0; margin-bottom: 1rem; border: 1px solid var(--card-border); border-radius: .6rem; padding: .75rem; }
+  .platform-admin-table td { display: block; width: 100%; max-width: 100%; min-width: 0; border: 0; padding: .35rem 0; }
+  .platform-admin-table td:nth-child(n) { width: 100%; }
   .platform-admin-table td::before { content: attr(data-label); display: block; color: var(--muted-fg); font-size: .72rem; text-transform: uppercase; }
+}
+
+@media (max-width: 768px) {
+  .platform-admin-shell { width: 100%; min-width: 0; max-width: 100%; padding: 1rem; }
+  .platform-admin-shell .topbar,
+  .platform-admin-shell .section-heading { flex-wrap: wrap; align-items: flex-start; }
+  .platform-admin-shell .topbar > *,
+  .platform-admin-shell .section-heading > *,
+  .platform-admin-shell .search-bar,
+  .platform-admin-shell .search-bar label,
+  .platform-admin-shell .table-wrap,
+  .platform-admin-shell .inline-confirm,
+  .platform-admin-shell .button-row { min-width: 0; max-width: 100%; }
+  .platform-admin-shell input,
+  .platform-admin-shell select { width: 100%; min-width: 0; max-width: 100%; }
+  .platform-admin-shell .button-row { flex-wrap: wrap; }
 }
 
 /* Auditor workspace: shared brand tokens with bounded, readable event details. */
